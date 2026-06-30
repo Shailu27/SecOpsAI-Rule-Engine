@@ -1,66 +1,39 @@
 """
 Rule-Based Detection Engine
 ---------------------------
-Performs baseline rule-based threat detection before
-Machine Learning based detection.
+Registry-based Rule Engine for SecOpsAI.
+Threshold-based rules are loaded from services.rules.
+Custom rules are implemented as dedicated methods.
 """
 
 from datetime import datetime
-from typing import Any
 import logging
 
 from schemas.alert import Alert
 from schemas.detection import DetectionRequest
 
-from services.rules_config import (
-    FAILED_LOGIN_LIMIT,
-    PORT_SCAN_LIMIT,
-    DATA_EXFIL_LIMIT,
-    BRUTE_FORCE_SCORE,
-    PORT_SCAN_SCORE,
-    DATA_EXFIL_SCORE,
-    AUTHENTICATION,
-    NETWORK_RECON,
-    DATA_SECURITY,
-    RULE_ENGINE_SOURCE,
-    LOW,
-    MEDIUM,
-    HIGH,
-    CRITICAL,
-    RB001,
-    RB002,
-    RB003,
-)
+from services.rules import RULES
+from services.rules_config import *
 
 logger = logging.getLogger(__name__)
 
 
 class RuleEngine:
-    """
-    Baseline Rule-Based Detection Engine.
-    """
 
-    def __init__(self):
-        self.rules = (
-            self.detect_bruteforce,
-            self.detect_portscan,
-            self.detect_data_exfiltration,
-        )
-
-    # =====================================================
-    # Utility
-    # =====================================================
+    ####################################################
+    # Alert Builder
+    ####################################################
 
     def _create_alert(
         self,
-        rule_id: str,
-        category: str,
-        threat: str,
-        severity: str,
-        score: int,
-        description: str,
-        timestamp: str,
-    ) -> Alert:
+        rule_id,
+        category,
+        threat,
+        severity,
+        score,
+        description,
+        timestamp,
+    ):
 
         return Alert(
             rule_id=rule_id,
@@ -73,84 +46,223 @@ class RuleEngine:
             timestamp=timestamp,
         )
 
-    # =====================================================
-    # RB001 - Brute Force
-    # =====================================================
+    ####################################################
+    # Registry Rules
+    ####################################################
 
-    def detect_bruteforce(
-        self,
-        request: DetectionRequest,
-        timestamp: str,
-    ):
+    def run_threshold_rules(self, request, timestamp):
 
-        if request.failed_logins <= FAILED_LOGIN_LIMIT:
+        alerts = []
+
+        for rule in RULES:
+
+            value = getattr(request, rule["field"], 0)
+
+            if value > rule["limit"]:
+
+                logger.warning("%s triggered", rule["id"])
+
+                alerts.append(
+
+                    self._create_alert(
+
+                        rule["id"],
+
+                        rule["category"],
+
+                        rule["threat"],
+
+                        rule["severity"],
+
+                        rule["score"],
+
+                        rule["description"],
+
+                        timestamp,
+
+                    )
+
+                )
+
+        return alerts
+    ####################################################
+    # RB008 - SQL Injection
+    ####################################################
+
+    def detect_sql_injection(self, request, timestamp):
+
+        payload = request.payload.lower()
+
+        keywords = [
+            "union select",
+            "drop table",
+            "insert into",
+            "delete from",
+            "update ",
+            "or 1=1",
+            "'--",
+            "information_schema",
+        ]
+
+        if not any(keyword in payload for keyword in keywords):
             return None
 
-        logger.warning("%s triggered - Brute Force detected", RB001)
+        logger.warning("%s triggered", RB008)
 
         return self._create_alert(
-            rule_id=RB001,
-            category=AUTHENTICATION,
-            threat="Brute Force",
-            severity=HIGH,
-            score=BRUTE_FORCE_SCORE,
-            description="Failed login attempts exceeded configured threshold.",
-            timestamp=timestamp,
+            RB008,
+            WEB_SECURITY,
+            "SQL Injection",
+            CRITICAL,
+            SQLI_SCORE,
+            "Possible SQL Injection payload detected.",
+            timestamp,
         )
 
-    # =====================================================
-    # RB002 - Port Scan
-    # =====================================================
+    ####################################################
+    # RB009 - Cross Site Scripting
+    ####################################################
 
-    def detect_portscan(
-        self,
-        request: DetectionRequest,
-        timestamp: str,
-    ):
+    def detect_xss(self, request, timestamp):
 
-        if request.ports_accessed <= PORT_SCAN_LIMIT:
+        payload = request.payload.lower()
+
+        patterns = [
+            "<script",
+            "javascript:",
+            "onerror=",
+            "onload=",
+            "onclick=",
+            "onmouseover=",
+            "<iframe",
+        ]
+
+        if not any(pattern in payload for pattern in patterns):
             return None
 
-        logger.warning("%s triggered - Port Scan detected", RB002)
+        logger.warning("%s triggered", RB009)
 
         return self._create_alert(
-            rule_id=RB002,
-            category=NETWORK_RECON,
-            threat="Port Scan",
-            severity=HIGH,
-            score=PORT_SCAN_SCORE,
-            description="Number of accessed ports exceeded configured threshold.",
-            timestamp=timestamp,
+            RB009,
+            WEB_SECURITY,
+            "Cross Site Scripting",
+            HIGH,
+            XSS_SCORE,
+            "Potential XSS payload detected.",
+            timestamp,
         )
 
-    # =====================================================
-    # RB003 - Data Exfiltration
-    # =====================================================
+    ####################################################
+    # RB010 - Command Injection
+    ####################################################
 
-    def detect_data_exfiltration(
-        self,
-        request: DetectionRequest,
-        timestamp: str,
-    ):
+    def detect_command_injection(self, request, timestamp):
 
-        if request.bytes_sent <= DATA_EXFIL_LIMIT:
+        payload = request.payload.lower()
+
+        patterns = [
+            ";",
+            "&&",
+            "||",
+            "$(",
+            "`",
+        ]
+
+        if not any(pattern in payload for pattern in patterns):
             return None
 
-        logger.warning("%s triggered - Data Exfiltration detected", RB003)
+        logger.warning("%s triggered", RB010)
 
         return self._create_alert(
-            rule_id=RB003,
-            category=DATA_SECURITY,
-            threat="Data Exfiltration",
-            severity=CRITICAL,
-            score=DATA_EXFIL_SCORE,
-            description="Outbound data transfer exceeded configured threshold.",
-            timestamp=timestamp,
+            RB010,
+            WEB_SECURITY,
+            "Command Injection",
+            CRITICAL,
+            COMMAND_INJECTION_SCORE,
+            "Possible command injection payload detected.",
+            timestamp,
+        )
+        ####################################################
+    # RB012 - Malware Activity
+    ####################################################
+
+    def detect_malware(self, request, timestamp):
+
+        if not request.malware_signature:
+            return None
+
+        logger.warning("%s triggered", RB012)
+
+        return self._create_alert(
+            RB012,
+            ENDPOINT,
+            "Malware Activity",
+            CRITICAL,
+            MALWARE_SCORE,
+            "Known malware signature detected.",
+            timestamp,
         )
 
-    # =====================================================
-    # Helpers
-    # =====================================================
+    ####################################################
+    # RB015 - Beaconing
+    ####################################################
+
+    def detect_beaconing(self, request, timestamp):
+
+        if request.connection_interval > BEACON_INTERVAL:
+            return None
+
+        logger.warning("%s triggered", RB015)
+
+        return self._create_alert(
+            RB015,
+            COMMAND_CONTROL,
+            "Beaconing",
+            HIGH,
+            BEACON_SCORE,
+            "Periodic outbound communication detected.",
+            timestamp,
+        )
+
+    ####################################################
+    # RB016 - Suspicious User Agent
+    ####################################################
+
+    def detect_suspicious_user_agent(self, request, timestamp):
+
+        user_agent = request.user_agent.lower()
+
+        suspicious_agents = [
+            "curl",
+            "wget",
+            "python",
+            "sqlmap",
+            "nikto",
+            "masscan",
+            "nmap",
+            "zgrab",
+            "nessus",
+            "acunetix",
+        ]
+
+        if not any(agent in user_agent for agent in suspicious_agents):
+            return None
+
+        logger.warning("%s triggered", RB016)
+
+        return self._create_alert(
+            RB016,
+            WEB_SECURITY,
+            "Suspicious User Agent",
+            MEDIUM,
+            USER_AGENT_SCORE,
+            "Known security tool or scanner detected.",
+            timestamp,
+        )
+
+    ####################################################
+    # Helper Methods
+    ####################################################
 
     def _overall_severity(self, alerts):
 
@@ -166,33 +278,44 @@ class RuleEngine:
 
         return max(
             alerts,
-            key=lambda a: ranking[a.severity]
+            key=lambda alert: ranking[alert.severity],
         ).severity
 
     def _threat_score(self, alerts):
 
-        if not alerts:
-            return 0
-
         return max(
-            alert.threat_score
-            for alert in alerts
+            (alert.threat_score for alert in alerts),
+            default=0,
         )
-
-    # =====================================================
+    ####################################################
     # Execute Rule Engine
-    # =====================================================
+    ####################################################
 
-    def run(
-        self,
-        request: DetectionRequest,
-    ) -> dict:
+    def run(self, request: DetectionRequest):
 
         timestamp = datetime.utcnow().isoformat()
 
         alerts = []
 
-        for rule in self.rules:
+        # Run all threshold-based rules
+        alerts.extend(
+            self.run_threshold_rules(
+                request,
+                timestamp,
+            )
+        )
+
+        # Run all custom detection rules
+        custom_rules = (
+            self.detect_sql_injection,
+            self.detect_xss,
+            self.detect_command_injection,
+            self.detect_malware,
+            self.detect_beaconing,
+            self.detect_suspicious_user_agent,
+        )
+
+        for rule in custom_rules:
 
             alert = rule(
                 request,
@@ -203,17 +326,10 @@ class RuleEngine:
                 alerts.append(alert)
 
         return {
-
             "matched": bool(alerts),
-
             "alert_count": len(alerts),
-
-            "overall_severity":
-                self._overall_severity(alerts),
-
-            "threat_score":
-                self._threat_score(alerts),
-
+            "overall_severity": self._overall_severity(alerts),
+            "threat_score": self._threat_score(alerts),
             "alerts": [
                 alert.to_dict()
                 for alert in alerts
@@ -221,14 +337,17 @@ class RuleEngine:
         }
 
 
+####################################################
+# Singleton Instance
+####################################################
+
 _engine = RuleEngine()
 
 
-def run_rule_engine(
-    request: DetectionRequest,
-) -> dict:
-    """
-    Public API for the Rule Engine.
-    """
+####################################################
+# Public API
+####################################################
+
+def run_rule_engine(request: DetectionRequest):
 
     return _engine.run(request)
