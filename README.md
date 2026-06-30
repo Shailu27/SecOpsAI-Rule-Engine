@@ -4,8 +4,6 @@ A modular **Rule-Based Detection Engine** developed for the **Sec-Ops-AI** cyber
 
 The Rule Engine performs **baseline threat detection** using predefined security rules before forwarding unknown traffic to the Machine Learning Detection Engine.
 
----
-
 ## Features
 
 - ✅ Brute Force Detection
@@ -19,7 +17,6 @@ The Rule Engine performs **baseline threat detection** using predefined security
 - ✅ FastAPI Integration Ready
 - ✅ Modular & Extensible Design
 
----
 
 # Project Architecture
 
@@ -41,8 +38,6 @@ The Rule Engine performs **baseline threat detection** using predefined security
                            ▼
                     Response to API
 ```
-
----
 
 # Project Structure
 
@@ -73,8 +68,6 @@ SecOpsAI-Rule-Engine/
 └── .gitignore
 ```
 
----
-
 # Detection Rules
 
 | Rule ID | Threat | Severity |
@@ -83,7 +76,6 @@ SecOpsAI-Rule-Engine/
 | RB002 | Port Scan | HIGH |
 | RB003 | Data Exfiltration | CRITICAL |
 
----
 
 # Alert Example
 
@@ -108,7 +100,6 @@ SecOpsAI-Rule-Engine/
 }
 ```
 
----
 
 # Running Tests
 
@@ -148,7 +139,6 @@ Current thresholds
 | Ports Accessed | > 20 |
 | Bytes Sent | > 1,000,000 |
 
----
 
 # Future Enhancements
 
@@ -162,7 +152,6 @@ Current thresholds
 - Docker Deployment
 - Kubernetes Support
 
----
 
 # Tech Stack
 
@@ -171,7 +160,6 @@ Current thresholds
 - Logging
 - FastAPI (Integration Ready)
 
----
 
 # Integration Workflow
 
@@ -207,13 +195,11 @@ Alert                 ML Detection Engine
 Response
 ```
 
----
 
 # License
 
 This project is released under the MIT License.
 
----
 
 # Author
 
